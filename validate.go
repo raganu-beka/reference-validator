@@ -14,8 +14,6 @@ const userAgent = "reference-validator/1.0 (mailto:user@example.com)"
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
-// validateDOI looks up a DOI on Crossref and fuzzy-matches the returned title
-// and authors against the parsed reference.
 func validateDOI(doi string, ref Reference) (idFound, titleMatch, authorMatch bool, err error) {
 	url := "https://api.crossref.org/works/" + doi
 	body, err := httpGet(url)
@@ -48,9 +46,6 @@ func validateDOI(doi string, ref Reference) (idFound, titleMatch, authorMatch bo
 	return true, titlesMatch(ref.Title, apiTitle), authorsMatch(ref.Authors, apiAuthors), nil
 }
 
-// validateISBN looks up an ISBN on Open Library and fuzzy-matches title and
-// authors. Open Library returns author refs that must be dereferenced for
-// names, but the title is inline.
 func validateISBN(isbn string, ref Reference) (idFound, titleMatch, authorMatch bool, err error) {
 	clean := stripISBN(isbn)
 	url := "https://openlibrary.org/isbn/" + clean + ".json"
@@ -129,8 +124,6 @@ func stripISBN(isbn string) string {
 	return b.String()
 }
 
-// normalize lowercases and removes punctuation/whitespace runs for fuzzy
-// comparison.
 func normalize(s string) string {
 	var b strings.Builder
 	prevSpace := false
@@ -157,13 +150,10 @@ func titlesMatch(a, b string) bool {
 	if na == nb {
 		return true
 	}
-	// Substring either way handles subtitle differences.
+
 	return strings.Contains(na, nb) || strings.Contains(nb, na)
 }
 
-// authorsMatch returns true if any parsed author's last name appears in the
-// API's author list (case-insensitive). Last name is taken as the first
-// comma-delimited segment when present, else the last whitespace segment.
 func authorsMatch(parsed, api []string) bool {
 	if len(parsed) == 0 || len(api) == 0 {
 		return false
