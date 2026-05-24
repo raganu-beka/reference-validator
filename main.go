@@ -110,14 +110,9 @@ func processOne(raw, model string) ValidationResult {
 	return res
 }
 
-// numberedPrefix matches list markers like "1.", "1)", "[1]", "(1)" at the
-// start of a (trimmed) line.
 var numberedPrefix = regexp.MustCompile(`^(?:\[\d+\]|\(\d+\)|\d+[.)])\s+`)
+var citationStart = regexp.MustCompile(`^[A-Z][a-z\-]*(?:,\s+[A-Z]|\.|\s+[A-Z]{2,})`)
 
-// splitReferences accepts the entire input and returns each reference as a
-// single trimmed string. It splits on blank lines, and additionally on lines
-// that begin with a numbered list marker — even when no blank line separates
-// them.
 func splitReferences(input string) []string {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
@@ -142,17 +137,18 @@ func splitReferences(input string) []string {
 			continue
 		}
 
-		// A numbered marker starts a new reference (unless current is empty).
-		if numberedPrefix.MatchString(trimmed) && cur.Len() > 0 {
+		isNumbered := numberedPrefix.MatchString(trimmed)
+		isCitStart := citationStart.MatchString(trimmed)
+		if (isNumbered || isCitStart) && cur.Len() > 0 {
 			flush()
 		}
 
 		if cur.Len() > 0 {
 			cur.WriteByte(' ')
 		}
-		// Strip the leading numbering for cleanliness.
 		cur.WriteString(numberedPrefix.ReplaceAllString(trimmed, ""))
 	}
+
 	flush()
 	return refs
 }
