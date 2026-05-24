@@ -9,20 +9,22 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"time"
+	"sync"
 )
 
 func main() {
 	var (
-		filePath string
-		model    string
-		asJSON   bool
-		strict   bool
+		filePath    string
+		model       string
+		asJSON      bool
+		strict      bool
+		concurrency int
 	)
 	flag.StringVar(&filePath, "file", "", "read references from file instead of stdin")
 	flag.StringVar(&model, "model", "", "Claude model to use for parsing (default: claude CLI default)")
 	flag.BoolVar(&asJSON, "json", false, "output JSON")
 	flag.BoolVar(&strict, "strict", false, "treat warnings as failures (affects exit code)")
+	flag.IntVar(&concurrency, "concurrency", 5, "max references processed in parallel (-1 = all at once)")
 	flag.Parse()
 
 	if _, err := exec.LookPath("claude"); err != nil {
@@ -58,17 +60,33 @@ func main() {
 	}
 
 	useColor := !asJSON && isTTY(os.Stdout)
-	results := make([]ValidationResult, 0, len(refs))
-	for i, r := range refs {
-		res := processOne(r, model)
-		results = append(results, res)
-		if !asJSON {
-			writeResult(os.Stdout, res, i, numbered, strict, useColor)
-		}
-		if i < len(refs)-1 {
-			time.Sleep(500 * time.Millisecond)
-		}
+
+	if concurrency < 0 || concurrency > len(refs) {
+		concurrency = len(refs)
 	}
+	if concurrency == 0 {
+		concurrency = 1
+	}
+
+	results := make([]ValidationResult, len(refs))
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	var printMu sync.Mutex
+	for i, r := range refs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, r string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = processOne(r, model)
+			if !asJSON {
+				printMu.Lock()
+				writeResult(os.Stdout, results[i], i, numbered, strict, useColor)
+				printMu.Unlock()
+			}
+		}(i, r)
+	}
+	wg.Wait()
 
 	if asJSON {
 		if err := writeJSON(os.Stdout, results); err != nil {
