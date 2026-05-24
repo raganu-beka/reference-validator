@@ -123,7 +123,7 @@ func processOne(raw, model string) ValidationResult {
 }
 
 var numberedPrefix = regexp.MustCompile(`^(?:\[\d+\]|\(\d+\)|\d+[.)])\s+`)
-var citationStart = regexp.MustCompile(`^[A-Z][a-z\-]*(?:,\s+[A-Z]|\.|\s+[A-Z]{2,})`)
+var citationStart = regexp.MustCompile(`^(?:[\p{Lu}][a-zA-Z\-]*|[a-z][a-z\-]*)(?:,\s+[A-Z\p{Lu}]|\.|\s+[A-Z\p{Lu}])`)
 
 func splitReferences(input string) ([]string, bool) {
 	scanner := bufio.NewScanner(strings.NewReader(input))
