@@ -47,19 +47,38 @@ func classify(r ValidationResult, strict bool) status {
 	return statusOK
 }
 
-func writeReport(w io.Writer, results []ValidationResult, asJSON, strict bool) error {
-	if asJSON {
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		return enc.Encode(results)
+func writeJSON(w io.Writer, results []ValidationResult) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(results)
+}
+
+func writeResult(w io.Writer, r ValidationResult, i int, numbered, strict, useColor bool) {
+	s := classify(r, strict)
+	symbol, color := symbolFor(s)
+	reset := colorReset
+	if !useColor {
+		color = ""
+		reset = ""
 	}
 
-	useColor := isTTY(w)
-	var ok, warn, fail int
+	header := formatHeader(r.Ref)
+	if numbered {
+		fmt.Fprintf(w, "%s[%d] %s%s  %s\n", color, i+1, symbol, reset, header)
+	} else {
+		fmt.Fprintf(w, "%s%s%s  %s\n", color, symbol, reset, header)
+	}
 
-	for i, r := range results {
-		s := classify(r, strict)
-		switch s {
+	for _, line := range detailLines(r) {
+		fmt.Fprintf(w, "        %s\n", line)
+	}
+	fmt.Fprintln(w)
+}
+
+func writeSummary(w io.Writer, results []ValidationResult, strict bool) {
+	var ok, warn, fail int
+	for _, r := range results {
+		switch classify(r, strict) {
 		case statusOK:
 			ok++
 		case statusWarn:
@@ -67,27 +86,8 @@ func writeReport(w io.Writer, results []ValidationResult, asJSON, strict bool) e
 		case statusFail:
 			fail++
 		}
-
-		symbol, color := symbolFor(s)
-		if !useColor {
-			color = ""
-		}
-		reset := colorReset
-		if !useColor {
-			reset = ""
-		}
-
-		header := formatHeader(r.Ref)
-		fmt.Fprintf(w, "%s[%d] %s%s  %s%s\n", color, i+1, symbol, reset, header, "")
-
-		for _, line := range detailLines(r) {
-			fmt.Fprintf(w, "        %s\n", line)
-		}
-		fmt.Fprintln(w)
 	}
-
 	fmt.Fprintf(w, "%d checked — %d valid, %d warning, %d failed\n", len(results), ok, warn, fail)
-	return nil
 }
 
 func symbolFor(s status) (string, string) {

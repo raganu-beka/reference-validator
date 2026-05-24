@@ -47,26 +47,38 @@ func main() {
 		os.Exit(2)
 	}
 
-	refs := splitReferences(string(raw))
+	refs, numbered := splitReferences(string(raw))
 	if len(refs) == 0 {
 		fmt.Fprintln(os.Stderr, "no references found in input")
 		os.Exit(1)
 	}
 
+	if !asJSON {
+		fmt.Fprintf(os.Stdout, "validating %v references\n\n", len(refs))
+	}
+
+	useColor := !asJSON && isTTY(os.Stdout)
 	results := make([]ValidationResult, 0, len(refs))
 	for i, r := range refs {
-		results = append(results, processOne(r, model))
+		res := processOne(r, model)
+		results = append(results, res)
+		if !asJSON {
+			writeResult(os.Stdout, res, i, numbered, strict, useColor)
+		}
 		if i < len(refs)-1 {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
 
-	if err := writeReport(os.Stdout, results, asJSON, strict); err != nil {
-		fmt.Fprintf(os.Stderr, "write report: %v\n", err)
-		os.Exit(2)
+	if asJSON {
+		if err := writeJSON(os.Stdout, results); err != nil {
+			fmt.Fprintf(os.Stderr, "write report: %v\n", err)
+			os.Exit(2)
+		}
+	} else {
+		writeSummary(os.Stdout, results, strict)
 	}
 
-	// Exit nonzero if anything failed (or warned in strict mode).
 	for _, r := range results {
 		if classify(r, strict) == statusFail {
 			os.Exit(1)
@@ -113,12 +125,13 @@ func processOne(raw, model string) ValidationResult {
 var numberedPrefix = regexp.MustCompile(`^(?:\[\d+\]|\(\d+\)|\d+[.)])\s+`)
 var citationStart = regexp.MustCompile(`^[A-Z][a-z\-]*(?:,\s+[A-Z]|\.|\s+[A-Z]{2,})`)
 
-func splitReferences(input string) []string {
+func splitReferences(input string) ([]string, bool) {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var refs []string
 	var cur strings.Builder
+	var numbered bool
 
 	flush := func() {
 		s := strings.TrimSpace(cur.String())
@@ -139,6 +152,9 @@ func splitReferences(input string) []string {
 
 		isNumbered := numberedPrefix.MatchString(trimmed)
 		isCitStart := citationStart.MatchString(trimmed)
+		if isNumbered {
+			numbered = true
+		}
 		if (isNumbered || isCitStart) && cur.Len() > 0 {
 			flush()
 		}
@@ -150,5 +166,5 @@ func splitReferences(input string) []string {
 	}
 
 	flush()
-	return refs
+	return refs, numbered
 }
