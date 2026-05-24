@@ -31,12 +31,25 @@ func classify(r ValidationResult, strict bool) status {
 	if !r.ParseOK {
 		return statusFail
 	}
+	isURL := r.Ref.DOI == "" && r.Ref.ISBN == "" && r.Ref.URL != ""
 	if !r.IDFound {
-		// No identifier at all — cannot validate.
-		if r.Ref.DOI == "" && r.Ref.ISBN == "" {
+		if r.Ref.DOI == "" && r.Ref.ISBN == "" && r.Ref.URL == "" {
+			return statusFail
+		}
+		if isURL {
+			// Broken link is a real failure, not a soft warning.
 			return statusFail
 		}
 		return statusWarn
+	}
+	if isURL {
+		if (!r.TitleMatch && r.Ref.Title != "") || len(r.Warnings) > 0 {
+			if strict {
+				return statusFail
+			}
+			return statusWarn
+		}
+		return statusOK
 	}
 	if !r.TitleMatch || !r.AuthorMatch || len(r.Warnings) > 0 {
 		if strict {
@@ -159,8 +172,19 @@ func detailLines(r ValidationResult) []string {
 		default:
 			lines = append(lines, fmt.Sprintf("ISBN %s → confirmed via Open Library", r.Ref.ISBN))
 		}
+	case r.Ref.URL != "":
+		switch {
+		case !r.IDFound:
+			lines = append(lines, fmt.Sprintf("URL %s → unreachable", r.Ref.URL))
+		case r.Ref.Title == "":
+			lines = append(lines, fmt.Sprintf("URL %s → reachable (no title to compare)", r.Ref.URL))
+		case !r.TitleMatch:
+			lines = append(lines, fmt.Sprintf("URL %s → reachable, but page title mismatch", r.Ref.URL))
+		default:
+			lines = append(lines, fmt.Sprintf("URL %s → reachable and title matches", r.Ref.URL))
+		}
 	default:
-		lines = append(lines, "No DOI or ISBN found. Could not validate.")
+		lines = append(lines, "No DOI, ISBN, or URL found. Could not validate.")
 	}
 
 	for _, wmsg := range r.Warnings {

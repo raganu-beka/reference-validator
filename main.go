@@ -134,6 +134,16 @@ func processOne(raw, model string) ValidationResult {
 			return res
 		}
 		res.IDFound, res.TitleMatch, res.AuthorMatch = idFound, tm, am
+	case ref.URL != "":
+		reachable, tm, vErr := validateURL(ref.URL, ref)
+		if vErr != nil {
+			res.IDFound = false
+			res.Warnings = append(res.Warnings, fmt.Sprintf("URL unreachable: %v", vErr))
+			return res
+		}
+		res.IDFound = reachable
+		res.TitleMatch = tm
+		res.AuthorMatch = true
 	default:
 		// No identifier — handled in report.
 	}

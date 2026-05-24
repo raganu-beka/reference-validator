@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const parserSystemPrompt = `You are a citation parser. Extract fields from the reference below. Return ONLY valid JSON, no explanation, no markdown. Schema: {"authors": ["Last, F."], "title": "", "doi": "", "isbn": "", "year": "", "type": "article|book|website|unknown"}. If a field is not present, use an empty string or empty array. Normalize DOIs to just the identifier e.g. 10.1000/xyz, strip https://doi.org/.`
+const parserSystemPrompt = `You are a citation parser. Extract fields from the reference below. Return ONLY valid JSON, no explanation, no markdown. Schema: {"authors": ["Last, F."], "title": "", "doi": "", "isbn": "", "url": "", "year": "", "type": "article|book|website|unknown"}. If a field is not present, use an empty string or empty array. Normalize DOIs to just the identifier e.g. 10.1000/xyz, strip https://doi.org/. For url, extract any http(s) URL present in the reference that is not a doi.org link; leave empty if the reference has a DOI or ISBN as its primary identifier.`
 
 // parseReference invokes `claude -p` to extract structured fields from a raw
 // reference string. The raw text is sent on stdin to the subprocess.
@@ -46,6 +46,7 @@ func parseReference(raw, model string) (Reference, error) {
 		Title   string   `json:"title"`
 		DOI     string   `json:"doi"`
 		ISBN    string   `json:"isbn"`
+		URL     string   `json:"url"`
 		Year    string   `json:"year"`
 		Type    string   `json:"type"`
 	}
@@ -57,6 +58,7 @@ func parseReference(raw, model string) (Reference, error) {
 	ref.Title = parsed.Title
 	ref.DOI = normalizeDOI(parsed.DOI)
 	ref.ISBN = parsed.ISBN
+	ref.URL = strings.TrimSpace(parsed.URL)
 	ref.Year = parsed.Year
 	ref.Type = parsed.Type
 	if ref.Type == "" {

@@ -7,6 +7,7 @@ type Reference struct {
 	Year    string   `json:"year"`
 	DOI     string   `json:"doi"`
 	ISBN    string   `json:"isbn"`
+	URL     string   `json:"url"`
 	Type    string   `json:"type"`
 }
 

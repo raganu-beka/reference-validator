@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -74,6 +75,28 @@ func validateISBN(isbn string, ref Reference) (idFound, titleMatch, authorMatch 
 	}
 
 	return true, titlesMatch(ref.Title, resp.Title), authorsMatch(ref.Authors, apiAuthors), nil
+}
+
+func validateURL(rawURL string, ref Reference) (reachable, titleMatch bool, err error) {
+	body, err := httpGet(rawURL)
+	if err != nil {
+		return false, false, fmt.Errorf("url fetch failed: %w", err)
+	}
+	pageTitle := extractHTMLTitle(string(body))
+	if ref.Title == "" || pageTitle == "" {
+		return true, false, nil
+	}
+	return true, titlesMatch(ref.Title, pageTitle), nil
+}
+
+var htmlTitleRe = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+
+func extractHTMLTitle(html string) string {
+	m := htmlTitleRe.FindStringSubmatch(html)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
 }
 
 func fetchOpenLibraryAuthor(key string) (string, error) {
